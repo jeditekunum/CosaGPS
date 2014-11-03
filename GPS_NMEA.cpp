@@ -21,7 +21,7 @@
 
 #include "GPS_NMEA.hh"
 
-#include "Cosa/Watchdog.hh"
+#include "Cosa/RTC.hh"
 
 
 /*
@@ -332,7 +332,7 @@ GPS_NMEA::process_sentence()
           m_satellites = m_tmp_satellites;
           m_hdop = m_tmp_hdop;
 
-          m_last_update = Watchdog::millis();
+          m_last_update = RTC::millis();
 
           m_tmp_gprmc_time = 0;
         }
