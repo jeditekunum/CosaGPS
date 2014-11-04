@@ -246,7 +246,7 @@ GPS_NMEA::process_field()
           break;
 
         case 9: // Date
-          m_tmp_date = strtol(m_field, NULL, 10);
+          m_tmp_date = strtoul(m_field, NULL, 10);
           break;
 
         default:
@@ -285,7 +285,7 @@ GPS_NMEA::process_field()
           break;
 
         case 7: // Satellites
-          m_tmp_satellites = strtol(m_field, NULL, 10);
+          m_tmp_satellites = strtoul(m_field, NULL, 10);
           break;
 
         case 8: // HDOP
@@ -315,7 +315,7 @@ GPS_NMEA::process_sentence()
 
 
   /* Last field is the checksum */
-  checksum = strtol(m_field, NULL, 16);
+  checksum = strtoul(m_field, NULL, 16);
 
   if (checksum == m_parity)
     {
