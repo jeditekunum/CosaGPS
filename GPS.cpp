@@ -40,8 +40,6 @@ GPS::clock(void)
   t.month = tmp % 100;
   t.date = tmp / 100;
 
-  t.to_bcd();
-
   return (clock_t(t));
 }
 
