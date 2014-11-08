@@ -23,7 +23,6 @@
 
 #include "Cosa/RTC.hh"
 
-
 /*
  * GPS NMEA (generic)
  */
@@ -37,6 +36,8 @@
 
 GPS_NMEA::GPS_NMEA() :
   GPS(),
+  m_dev(0),
+  m_monitor_dev(0),
   m_sentence(SENTENCE_INVALID),
   m_parity(0),
   m_field_number(0),
@@ -69,7 +70,7 @@ GPS_NMEA::begin(IOStream::Device* dev)
 void
 GPS_NMEA::end()
 {
-  GPS_NMEA::reset();
+  reset();
 }
 
 void
@@ -81,7 +82,7 @@ GPS_NMEA::begin_monitor(IOStream::Device* monitor_dev)
 void
 GPS_NMEA::end_monitor()
 {
-  m_monitor_dev = NULL;
+  m_monitor_dev = 0;
 }
 
 void
@@ -172,16 +173,18 @@ GPS_NMEA::reset(void)
 }
 
 void
-GPS_NMEA::new_field(char *field)
+GPS_NMEA::field(char *new_field)
 {
-  UNUSED(field);
+  UNUSED(new_field);
 
   /* May be implemented by subsclasses */
 }
 
 void
-GPS_NMEA::new_sentence(void)
+GPS_NMEA::sentence(bool valid)
 {
+  UNUSED(valid);
+
   /* May be implemented by subsclasses */
 }
 
@@ -200,8 +203,12 @@ GPS_NMEA::process_field()
       if (!strcmp(m_field, "GPRMC"))
         m_sentence = SENTENCE_GPRMC;
       else
-        if (!strcmp(m_field, "GPGGA"))
-          m_sentence = SENTENCE_GPGGA;
+        {
+          if (!strcmp(m_field, "GPGGA"))
+            m_sentence = SENTENCE_GPGGA;
+          else
+            field(m_field);
+        }
       return;
     }
 
@@ -249,7 +256,15 @@ GPS_NMEA::process_field()
           m_tmp_date = strtoul(m_field, NULL, 10);
           break;
 
+        case 10: // magnetic variation
+        case 11: // E or W
+          break;
+
+        case 12: // unknown
+          break;
+
         default:
+          m_sentence = SENTENCE_INVALID;
           break;
         }
       break;
@@ -296,7 +311,15 @@ GPS_NMEA::process_field()
           m_tmp_altitude = parse_and_scale(m_field, 2);
           break;
 
+        case 10: // Altitude units
+        case 11: // Geoidal separation
+        case 12: // Geoidal separation units
+        case 13: // Age of differential data
+        case 14: // Differential reference station id
+          break;
+ 
         default:
+          m_sentence = SENTENCE_INVALID;
           break;
         }
 
@@ -305,7 +328,7 @@ GPS_NMEA::process_field()
     }
 
   /* Subclass may implement new_field to handle other sentences */
-  new_field(m_field);
+  field(m_field);
 }
 
 void
@@ -336,10 +359,12 @@ GPS_NMEA::process_sentence()
 
           m_tmp_gprmc_time = 0;
         }
-    }
 
-  /* Subclass may implement new_sentence to handle other sentences */
-  new_sentence();
+      /* Subclass may implement new_sentence to handle other sentences */
+      sentence(true);
+    }
+  else
+    sentence(false);
 }
 
 GPS_NMEA::position_t

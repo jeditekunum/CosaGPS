@@ -19,25 +19,32 @@
 
 #include "GPS_NMEA_MT3339.hh"
 
+//#include "Cosa/Trace.hh"
 
 GPS_NMEA_MT3339::GPS_NMEA_MT3339() :
   GPS_NMEA(),
-  m_factory_reset_in_progress(false)
+  m_running(false),
+  m_sentence(SENTENCE_UNKNOWN),
+  m_field_number(0),
+  m_first_sentence_received(false),
+  m_in_standby(false)
 {
 }
 
 bool
 GPS_NMEA_MT3339::begin(IOStream::Device* dev)
 {
-  GPS_NMEA_MT3339::reset();
+  if (m_running)
+    return(false);
+
+  m_running = true;
+
+  reset();
 
   if (!GPS_NMEA::begin(dev))
     return (false);
 
-  /* Clear any lingering garbage (will also wake if in standby) */
-  send_cmd(PSTR(""));
-
-  select_sentences();
+  wake();
 
   return (true);
 }
@@ -45,7 +52,9 @@ GPS_NMEA_MT3339::begin(IOStream::Device* dev)
 void
 GPS_NMEA_MT3339::end(void)
 {
-  GPS_NMEA_MT3339::reset();
+  standby();
+
+  m_running = false;
 
   GPS_NMEA::end();
 }
@@ -65,16 +74,18 @@ GPS_NMEA_MT3339::end_monitor(void)
 void
 GPS_NMEA_MT3339::reset(void)
 {
-  m_factory_reset_in_progress = false;
+  m_sentence = SENTENCE_UNKNOWN;
+  m_field_number = 0;
+  m_first_sentence_received = false;
+  m_in_standby = false;
+
   GPS_NMEA::reset();
 }
 
 void
 GPS_NMEA_MT3339::factory_reset(void)
 {
-  GPS_NMEA_MT3339::reset();
-
-  m_factory_reset_in_progress = true;
+  reset();
 
   send_cmd(PSTR("$PMTK104*37"));
 
@@ -84,31 +95,107 @@ GPS_NMEA_MT3339::factory_reset(void)
 void
 GPS_NMEA_MT3339::standby(void)
 {
-  send_cmd(PSTR("$PMTK161,0*28"));
+  // Defer handling of reset until ack comes in
 
-  GPS_NMEA::reset();
+  if (!m_running)
+    return;
+
+  if (!m_in_standby)
+    send_cmd(PSTR("$PMTK161,0*28"));
+
+  m_in_standby = true;
 }
 
 void
 GPS_NMEA_MT3339::wake(void)
 {
+  if (!m_running)
+    return;
+  
+  m_in_standby = false;
   send_cmd(PSTR(""));
 }
 
 void
-GPS_NMEA_MT3339::new_field(char *field)
+GPS_NMEA_MT3339::field(char *new_field)
 {
-  UNUSED(field);
+  if (m_field_number == 0)
+    {
+      if (!strcmp(new_field, "PMTK001"))
+        {
+          m_sentence = SENTENCE_ACK;
+          m_field_number++;
+        }
+      return;
+    }
+
+  switch (m_sentence)
+    {
+    case SENTENCE_ACK:
+      switch (m_field_number)
+        {
+        case 1: // Command
+          m_command = strtoul(new_field, NULL, 10);
+          m_field_number++;
+          break;
+
+        case 2: // Status
+          m_status = strtoul(new_field, NULL, 10);
+          m_field_number++;
+          break;
+
+        default:
+          m_sentence = SENTENCE_UNKNOWN;
+          break;
+        }
+
+    default:
+      break;
+    }
 }
 
 void
-GPS_NMEA_MT3339::new_sentence(void)
+GPS_NMEA_MT3339::sentence(bool valid)
 {
-  if (m_factory_reset_in_progress)
+  if (!m_running)
+    return;
+
+  if (valid)
     {
-      m_factory_reset_in_progress = false;
-      select_sentences();
+      if (m_sentence == SENTENCE_ACK)
+        {
+          switch (m_command)
+            {
+            case 161: // standby
+              if (m_status == 3) // ok
+                {
+                  //  trace << PSTR("standby command ack") << endl;
+                  reset();
+                  m_in_standby = true;
+                }
+              else
+                {
+                  //  trace << PSTR("standby command NACK") << endl;
+                  m_in_standby = false;  // because it failed
+                }
+              break;
+            }
+        }
+      else
+        {
+          if (!m_first_sentence_received && !m_in_standby)
+            {
+              m_first_sentence_received = true;
+              select_sentences();
+          }
+        }
     }
+
+  // reset extended sentence
+  m_sentence = SENTENCE_UNKNOWN;
+  m_field_number = 0;
+  m_command = 0;
+  m_status = 0;
 }
 
 void

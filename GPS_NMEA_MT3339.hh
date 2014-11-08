@@ -75,8 +75,8 @@ public:
   virtual void wake();
 
 protected:
-  virtual void new_field(char*);
-  virtual void new_sentence();
+  virtual void field(char* new_field);
+  virtual void sentence(bool valid);
 
   /**
    * Print latest gps_nmea information to
@@ -88,7 +88,21 @@ protected:
   friend IOStream& operator<<(IOStream& outs, GPS_NMEA_MT3339& gps_nmea_mtk);
 
 private:
-  bool m_factory_reset_in_progress;
+  /* Kind of sentence (extended) */
+  enum sentence_t {
+    SENTENCE_UNKNOWN,
+    SENTENCE_ACK
+  } __attribute__((packed));
+
+  sentence_t m_sentence;
+
+  uint8_t m_field_number;
+  uint8_t m_command;
+  uint8_t m_status;
+
+  bool m_running;
+  bool m_first_sentence_received;
+  bool m_in_standby;
   void send_cmd(str_P);
   void select_sentences();
 };

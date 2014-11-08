@@ -70,10 +70,11 @@ protected:
 
   /**
    * GPS_NMEA processes only two sentences, $GPRMC and $GPGGA.  A subclass may
-   * handle other sentences by implementing new_field/new_sentence.
+   * handle other sentences by implementing field/sentence.  The argument
+   * to sentence is true if checksum was valid, false if not.
    */
-  virtual void new_field(char*);
-  virtual void new_sentence();
+  virtual void field(char* new_field);
+  virtual void sentence(bool valid);
 
   /**
    * Print latest gps_nmea information to
