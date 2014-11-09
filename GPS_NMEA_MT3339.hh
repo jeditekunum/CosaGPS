@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA_MT3339.hh
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -45,16 +45,6 @@ public:
   virtual void end();
 
   /**
-   * Begin monitoring GPS data stream
-   */
-  virtual void begin_monitor(IOStream::Device*);
-
-  /**
-   * End monitoring
-   */
-  virtual void end_monitor();
-
-  /**
    * Reset
    */
   virtual void reset();
@@ -79,7 +69,7 @@ protected:
   virtual void sentence(bool valid);
 
   /**
-   * Print latest gps_nmea information to
+   * Print latest gps_nmea_mtk information to
    * given stream.
    * @param[in] outs output stream
    * @param[in] gps_nmea_mtk to print
@@ -100,7 +90,6 @@ private:
   uint8_t m_command;
   uint8_t m_status;
 
-  bool m_running;
   bool m_first_sentence_received;
   bool m_in_standby;
   void send_cmd(str_P);

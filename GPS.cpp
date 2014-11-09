@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS.cpp
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -18,6 +18,21 @@
  */
 
 #include "GPS.hh"
+
+void
+GPS::reset(void)
+{
+  m_last_update = 0;
+  m_date = 0;
+  m_time = 0;
+  m_latitude = 0;
+  m_longitude = 0;
+  m_altitude = 0;
+  m_course = 0;
+  m_speed = 0;
+  m_satellites = 0;
+  m_hdop = 0;
+}
 
 clock_t
 GPS::clock(void)
@@ -41,21 +56,6 @@ GPS::clock(void)
   t.date = tmp / 100;
 
   return (clock_t(t));
-}
-
-void
-GPS::reset(void)
-{
-  m_last_update = 0;
-  m_date = 0;
-  m_time = 0;
-  m_latitude = 0;
-  m_longitude = 0;
-  m_altitude = 0;
-  m_course = 0;
-  m_speed = 0;
-  m_satellites = 0;
-  m_hdop = 0;
 }
 
 IOStream& 

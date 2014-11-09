@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA_MT3339.cpp
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -17,13 +17,13 @@
  * 
  */
 
+#include "Cosa/Trace.hh"
+
 #include "GPS_NMEA_MT3339.hh"
 
-//#include "Cosa/Trace.hh"
 
 GPS_NMEA_MT3339::GPS_NMEA_MT3339() :
   GPS_NMEA(),
-  m_running(false),
   m_sentence(SENTENCE_UNKNOWN),
   m_field_number(0),
   m_first_sentence_received(false),
@@ -34,11 +34,6 @@ GPS_NMEA_MT3339::GPS_NMEA_MT3339() :
 bool
 GPS_NMEA_MT3339::begin(IOStream::Device* dev)
 {
-  if (m_running)
-    return(false);
-
-  m_running = true;
-
   reset();
 
   if (!GPS_NMEA::begin(dev))
@@ -54,21 +49,7 @@ GPS_NMEA_MT3339::end(void)
 {
   standby();
 
-  m_running = false;
-
   GPS_NMEA::end();
-}
-
-void
-GPS_NMEA_MT3339::begin_monitor(IOStream::Device* monitor_dev)
-{
-  GPS_NMEA::begin_monitor(monitor_dev);
-}
-
-void
-GPS_NMEA_MT3339::end_monitor(void)
-{
-  GPS_NMEA::end_monitor();
 }
 
 void
@@ -97,7 +78,7 @@ GPS_NMEA_MT3339::standby(void)
 {
   // Defer handling of reset until ack comes in
 
-  if (!m_running)
+  if (!m_active)
     return;
 
   if (!m_in_standby)
@@ -109,7 +90,7 @@ GPS_NMEA_MT3339::standby(void)
 void
 GPS_NMEA_MT3339::wake(void)
 {
-  if (!m_running)
+  if (!m_active)
     return;
   
   m_in_standby = false;
@@ -157,7 +138,7 @@ GPS_NMEA_MT3339::field(char *new_field)
 void
 GPS_NMEA_MT3339::sentence(bool valid)
 {
-  if (!m_running)
+  if (!m_active)
     return;
 
   if (valid)
@@ -201,13 +182,8 @@ GPS_NMEA_MT3339::sentence(bool valid)
 void
 GPS_NMEA_MT3339::send_cmd(str_P cmd)
 {
-  if (m_monitor_dev)
-    {
-      m_monitor_dev->puts_P((str_P)IOStream::LF);
-      m_monitor_dev->puts_P(PSTR("-> "));
-      m_monitor_dev->puts_P(cmd);
-      m_monitor_dev->puts_P((str_P)IOStream::LF);
-    }
+  if (m_tracing)
+    trace << endl << PSTR("-> ") << cmd << endl;
   m_dev->puts_P(cmd);
   m_dev->puts_P((str_P)IOStream::CRLF);
 }
@@ -237,4 +213,3 @@ operator<<(IOStream& outs, GPS_NMEA_MT3339& gps_nmea_mt3339)
   outs << (GPS_NMEA&)gps_nmea_mt3339;
   return (outs);
 }
-

@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS.hh
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -64,18 +64,20 @@ public:
     m_hdop(0)
   {}
 
-  /*
-   * Data returned from get methods is not valid until the first GPS data is received
+  /**
+   * Reset
    */
+  virtual void reset();
 
   /**
-   * Is data valid?
+   * Is data valid? Data returned from methods is not valid until the
+   * first GPS data is received.
    * @return valid
    */
   bool valid()
     __attribute__((always_inline))
   {
-    return m_last_update != 0;
+    return (m_last_update != 0);
   }
 
   /**
@@ -283,11 +285,6 @@ public:
   {
     return m_hdop / 100.0;
   }
-
-  /**
-   * Reset
-   */
-  virtual void reset();
 
 protected:
   /* Last time updated received */

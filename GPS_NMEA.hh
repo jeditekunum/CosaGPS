@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.hh
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -20,11 +20,15 @@
 #ifndef COSA_GPS_NMEA_HH
 #define COSA_GPS_NMEA_HH
 
+#include "Cosa/IOStream.hh"
+
 #include "GPS.hh"
 
 
 /**
  * GPS NMEA (generic)
+ *
+ * GPS_NMEA can be used with any NMEA compliant GPS device.
  */
 
 class GPS_NMEA : public GPS {
@@ -45,28 +49,41 @@ public:
   virtual void end();
 
   /**
-   * Begin monitoring data stream
+   * Reset
    */
-  virtual void begin_monitor(IOStream::Device*);
+  virtual void reset();
 
   /**
-   * End monitoring
+   * Begin tracing GPS data stream
    */
-  virtual void end_monitor();
+  virtual void begin_tracing();
+
+  /**
+   * End tracing GPS data stream
+   */
+  virtual void end_tracing();
 
   /**
    * Consume any data
    */
   virtual void consume();
 
-  /**
-   * Reset
-   */
-  virtual void reset();
 
 protected:
-  /* Where GPS device is connected */
-  IOStream::Device* m_dev;
+  /* Active?  Begin -> active, End -> not active */
+  bool m_active;
+
+  /* Are we tracing GPS data stream? */
+  bool m_tracing;
+
+  /* GPS device */
+  IOStream::Device *m_dev;
+
+  /* Parse position */
+  position_t parse_position(char *p);
+
+  /* Parse and scale */
+  int32_t parse_and_scale(char *p, uint8_t places);
 
   /**
    * GPS_NMEA processes only two sentences, $GPRMC and $GPGGA.  A subclass may
@@ -84,9 +101,6 @@ protected:
    * @return stream.
    */
   friend IOStream& operator<<(IOStream& outs, GPS_NMEA& gps_nmea);
-
-  /* GPS data monitoring stream */
-  IOStream::Device* m_monitor_dev;
 
 private:
   /* Kind of sentence */
@@ -111,12 +125,6 @@ private:
 
   /* Process sentence */
   void process_sentence();
-
-  /* Parse degrees */
-  position_t parse_position();
-
-  /* Parse and scale */
-  int32_t parse_and_scale(char *p, uint8_t places);
 
   /* Temporary data */
   date_t m_tmp_date;

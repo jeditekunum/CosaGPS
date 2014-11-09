@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.cpp
- * @version 0.1
+ * @version 0.5
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -18,26 +18,25 @@
  */
 
 #include <ctype.h>
+#include "Cosa/RTC.hh"
+#include "Cosa/Trace.hh"
 
 #include "GPS_NMEA.hh"
 
-#include "Cosa/RTC.hh"
-
-/*
- * GPS NMEA (generic)
- */
-
-/*
- * For each update interval we require that both $GPRMC and $GPGGA be
- * seen before we update the real state of the object (GPS::) since the state
- * contains info from both of them.  This is accomplished by comparing
- * the times from each message.
+/**
+ * NMEA messages consist of sentences made up of fields and a checksum.
+ * While there are many potential sentences, only 2, $GPRMC and $GPGGA, are
+ * needed to provide all the data exposed by the base class GPS.  Sentences
+ * may arrive in any order requiring that data is temporarily accumulated
+ * here until all sentences needed for an update to GPS have arrived.
+ * We know we have associated sentences when the time fields match.
  */
 
 GPS_NMEA::GPS_NMEA() :
   GPS(),
+  m_active(false),
+  m_tracing(false),
   m_dev(0),
-  m_monitor_dev(0),
   m_sentence(SENTENCE_INVALID),
   m_parity(0),
   m_field_number(0),
@@ -54,35 +53,60 @@ GPS_NMEA::GPS_NMEA() :
   m_tmp_satellites(0),
   m_tmp_hdop(0)
 {
-  m_field[0] = '\0';
 }
 
 bool
 GPS_NMEA::begin(IOStream::Device* dev)
 {
-  GPS_NMEA::reset();
+  if (m_active)
+    return (false);
+
+  m_active = true;
 
   m_dev = dev;
 
-  return true;
+  return (true);
 }
 
 void
 GPS_NMEA::end()
 {
+  m_active = false;
+
   reset();
 }
 
 void
-GPS_NMEA::begin_monitor(IOStream::Device* monitor_dev)
+GPS_NMEA::reset(void)
 {
-  m_monitor_dev = monitor_dev;
+  m_sentence = SENTENCE_INVALID;
+  m_field_number = 0;
+  m_field_offset = 0;
+  m_checksum_field = false;
+  m_tmp_date = 0;
+  m_tmp_gprmc_time = 0;
+  m_tmp_gpgga_time = 1;
+  m_tmp_latitude = 0;
+  m_tmp_longitude = 0;
+  m_tmp_altitude = 0;
+  m_tmp_course = 0;
+  m_tmp_speed = 0;
+  m_tmp_satellites = 0;
+  m_tmp_hdop = 0;
+
+  GPS::reset();
 }
 
 void
-GPS_NMEA::end_monitor()
+GPS_NMEA::begin_tracing()
 {
-  m_monitor_dev = 0;
+  m_tracing = true;
+}
+
+void
+GPS_NMEA::end_tracing()
+{
+  m_tracing = false;
 }
 
 void
@@ -95,11 +119,11 @@ GPS_NMEA::consume()
     {
       c = m_dev->getchar();
 
-      if (m_monitor_dev)
+      if (m_tracing)
         {
           if (c == '$')
-            m_monitor_dev->puts_P(PSTR("<- "));
-          m_monitor_dev->putchar(c);
+            trace << PSTR("<- ");
+          trace << c;
         }
 
       if (m_sentence != SENTENCE_INVALID ||
@@ -151,224 +175,8 @@ GPS_NMEA::consume()
     }
 }
 
-void
-GPS_NMEA::reset(void)
-{
-  m_sentence = SENTENCE_INVALID;
-  m_field_number = 0;
-  m_field_offset = 0;
-  m_checksum_field = false;
-  m_tmp_date = 0;
-  m_tmp_gprmc_time = 0;
-  m_tmp_gpgga_time = 1;
-  m_tmp_latitude = 0;
-  m_tmp_longitude = 0;
-  m_tmp_altitude = 0;
-  m_tmp_course = 0;
-  m_tmp_speed = 0;
-  m_tmp_satellites = 0;
-  m_tmp_hdop = 0;
-
-  GPS::reset();
-}
-
-void
-GPS_NMEA::field(char *new_field)
-{
-  UNUSED(new_field);
-
-  /* May be implemented by subsclasses */
-}
-
-void
-GPS_NMEA::sentence(bool valid)
-{
-  UNUSED(valid);
-
-  /* May be implemented by subsclasses */
-}
-
-IOStream& 
-operator<<(IOStream& outs, GPS_NMEA& gps_nmea)
-{
-  outs << (GPS&)gps_nmea;
-  return (outs);
-}
-
-void
-GPS_NMEA::process_field()
-{
-  if (m_field_number == 0)
-    {
-      if (!strcmp(m_field, "GPRMC"))
-        m_sentence = SENTENCE_GPRMC;
-      else
-        {
-          if (!strcmp(m_field, "GPGGA"))
-            m_sentence = SENTENCE_GPGGA;
-          else
-            field(m_field);
-        }
-      return;
-    }
-
-  switch (m_sentence)
-    {
-    case SENTENCE_GPRMC:
-      switch (m_field_number)
-        {
-        case 1:  // Time
-          m_tmp_gprmc_time = parse_and_scale(m_field, 2);
-          break;
-
-        case 2: // Validity
-          if (m_field[0] != 'A')
-            m_sentence = SENTENCE_INVALID;
-          break;
-
-        case 3: // Latitude
-          m_tmp_latitude = parse_position();
-          break;
-
-        case 4: // North/South
-          if (m_field[0] == 'S')
-            m_tmp_latitude = -m_tmp_latitude;
-          break;
-
-        case 5: // Longitude
-          m_tmp_longitude = parse_position();
-          break;
-
-        case 6: // East/West
-          if (m_field[0] == 'W')
-            m_tmp_longitude = -m_tmp_longitude;
-          break;
-
-        case 7: // Speed
-          m_tmp_speed = parse_and_scale(m_field, 2);
-          break;
-
-        case 8: // Course
-          m_tmp_course = parse_and_scale(m_field, 2);
-          break;
-
-        case 9: // Date
-          m_tmp_date = strtoul(m_field, NULL, 10);
-          break;
-
-        case 10: // magnetic variation
-        case 11: // E or W
-          break;
-
-        case 12: // unknown
-          break;
-
-        default:
-          m_sentence = SENTENCE_INVALID;
-          break;
-        }
-      break;
-
-    case SENTENCE_GPGGA:
-      switch (m_field_number)
-        {
-        case 1:  // Time
-          m_tmp_gpgga_time = parse_and_scale(m_field, 2);
-          break;
-
-        case 2: // Latitude
-          m_tmp_latitude = parse_position();
-          break;
-
-        case 3: // North/South
-          if (m_field[0] == 'S')
-            m_tmp_latitude = -m_tmp_latitude;
-          break;
-
-        case 4: // Longitude
-          m_tmp_longitude = parse_position();
-          break;
-
-        case 5: // East/West
-          if (m_field[0] == 'W')
-            m_tmp_longitude = -m_tmp_longitude;
-          break;
-
-        case 6: // Fix valid?
-          if (m_field[0] == '0')
-            m_sentence = SENTENCE_INVALID;
-          break;
-
-        case 7: // Satellites
-          m_tmp_satellites = strtoul(m_field, NULL, 10);
-          break;
-
-        case 8: // HDOP
-          m_tmp_hdop = parse_and_scale(m_field, 2);
-          break;
-
-        case 9: // Altitude
-          m_tmp_altitude = parse_and_scale(m_field, 2);
-          break;
-
-        case 10: // Altitude units
-        case 11: // Geoidal separation
-        case 12: // Geoidal separation units
-        case 13: // Age of differential data
-        case 14: // Differential reference station id
-          break;
- 
-        default:
-          m_sentence = SENTENCE_INVALID;
-          break;
-        }
-
-    default:
-      break;
-    }
-
-  /* Subclass may implement new_field to handle other sentences */
-  field(m_field);
-}
-
-void
-GPS_NMEA::process_sentence()
-{
-  uint32_t checksum;
-
-
-  /* Last field is the checksum */
-  checksum = strtoul(m_field, NULL, 16);
-
-  if (checksum == m_parity)
-    {
-      if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
-          m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
-        {
-          m_date = m_tmp_date;
-          m_time = m_tmp_gprmc_time;
-          m_latitude = m_tmp_latitude;
-          m_longitude = m_tmp_longitude;
-          m_altitude = m_tmp_altitude;
-          m_course = m_tmp_course;
-          m_speed = m_tmp_speed;
-          m_satellites = m_tmp_satellites;
-          m_hdop = m_tmp_hdop;
-
-          m_last_update = RTC::millis();
-
-          m_tmp_gprmc_time = 0;
-        }
-
-      /* Subclass may implement new_sentence to handle other sentences */
-      sentence(true);
-    }
-  else
-    sentence(false);
-}
-
 GPS_NMEA::position_t
-GPS_NMEA::parse_position()
+GPS_NMEA::parse_position(char *p)
 {
   position_t result;
   uint32_t scaled;
@@ -379,7 +187,7 @@ GPS_NMEA::parse_position()
   
   /* DDMM.MMMMM */
   
-  scaled = parse_and_scale(m_field, 5);
+  scaled = parse_and_scale(p, 5);
 
   /* DDMMMMMMM */
 
@@ -426,4 +234,199 @@ GPS_NMEA::parse_and_scale(char *p, uint8_t places)
     result = -result;
 
   return result;
+}
+
+void
+GPS_NMEA::field(char *new_field)
+{
+  UNUSED(new_field);
+
+  /* May be implemented by subsclasses */
+}
+
+void
+GPS_NMEA::sentence(bool valid)
+{
+  UNUSED(valid);
+
+  /* May be implemented by subsclasses */
+}
+
+IOStream& 
+operator<<(IOStream& outs, GPS_NMEA& gps_nmea)
+{
+  outs << (GPS&)gps_nmea;
+  return (outs);
+}
+
+void
+GPS_NMEA::process_field()
+{
+  if (m_field_number == 0)
+    {
+      if (!strcmp(m_field, "GPRMC"))
+        m_sentence = SENTENCE_GPRMC;
+      else
+        {
+          if (!strcmp(m_field, "GPGGA"))
+            m_sentence = SENTENCE_GPGGA;
+          else
+            field(m_field);  // Subclasses may implement other sentences
+        }
+      return;
+    }
+
+  switch (m_sentence)
+    {
+    case SENTENCE_GPRMC:
+      switch (m_field_number)
+        {
+        case 1:  // Time
+          m_tmp_gprmc_time = parse_and_scale(m_field, 2);
+          break;
+
+        case 2: // Validity
+          if (m_field[0] != 'A')
+            m_sentence = SENTENCE_INVALID;
+          break;
+
+        case 3: // Latitude
+          m_tmp_latitude = parse_position(m_field);
+          break;
+
+        case 4: // North/South
+          if (m_field[0] == 'S')
+            m_tmp_latitude = -m_tmp_latitude;
+          break;
+
+        case 5: // Longitude
+          m_tmp_longitude = parse_position(m_field);
+          break;
+
+        case 6: // East/West
+          if (m_field[0] == 'W')
+            m_tmp_longitude = -m_tmp_longitude;
+          break;
+
+        case 7: // Speed
+          m_tmp_speed = parse_and_scale(m_field, 2);
+          break;
+
+        case 8: // Course
+          m_tmp_course = parse_and_scale(m_field, 2);
+          break;
+
+        case 9: // Date
+          m_tmp_date = strtoul(m_field, NULL, 10);
+          break;
+
+        case 10: // magnetic variation
+        case 11: // E or W
+          break;
+
+        case 12: // unknown
+          break;
+
+        default:
+          m_sentence = SENTENCE_INVALID;
+          break;
+        }
+      break;
+
+    case SENTENCE_GPGGA:
+      switch (m_field_number)
+        {
+        case 1:  // Time
+          m_tmp_gpgga_time = parse_and_scale(m_field, 2);
+          break;
+
+        case 2: // Latitude
+          m_tmp_latitude = parse_position(m_field);
+          break;
+
+        case 3: // North/South
+          if (m_field[0] == 'S')
+            m_tmp_latitude = -m_tmp_latitude;
+          break;
+
+        case 4: // Longitude
+          m_tmp_longitude = parse_position(m_field);
+          break;
+
+        case 5: // East/West
+          if (m_field[0] == 'W')
+            m_tmp_longitude = -m_tmp_longitude;
+          break;
+
+        case 6: // Fix valid?
+          if (m_field[0] == '0')
+            m_sentence = SENTENCE_INVALID;
+          break;
+
+        case 7: // Satellites
+          m_tmp_satellites = strtoul(m_field, NULL, 10);
+          break;
+
+        case 8: // HDOP
+          m_tmp_hdop = parse_and_scale(m_field, 2);
+          break;
+
+        case 9: // Altitude
+          m_tmp_altitude = parse_and_scale(m_field, 2);
+          break;
+
+        case 10: // Altitude units
+        case 11: // Geoidal separation
+        case 12: // Geoidal separation units
+        case 13: // Age of differential data
+        case 14: // Differential reference station id
+          break;
+ 
+        default:
+          m_sentence = SENTENCE_INVALID;
+          break;
+        }
+
+    default:
+      break;
+    }
+
+  /* Subclass may implement field() to handle other sentences */
+  field(m_field);
+}
+
+void
+GPS_NMEA::process_sentence()
+{
+  uint32_t checksum;
+
+
+  /* Last field is the checksum */
+  checksum = strtoul(m_field, NULL, 16);
+
+  if (checksum == m_parity)
+    {
+      if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
+          m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
+        {
+          m_date = m_tmp_date;
+          m_time = m_tmp_gprmc_time;
+          m_latitude = m_tmp_latitude;
+          m_longitude = m_tmp_longitude;
+          m_altitude = m_tmp_altitude;
+          m_course = m_tmp_course;
+          m_speed = m_tmp_speed;
+          m_satellites = m_tmp_satellites;
+          m_hdop = m_tmp_hdop;
+
+          m_last_update = RTC::millis();
+
+          m_tmp_gprmc_time = 0;
+        }
+
+      /* Subclass may implement sentence() to handle other sentences */
+      sentence(true);
+    }
+  else
+    sentence(false);
 }
