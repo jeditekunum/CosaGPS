@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA_MT3339.cpp
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -22,24 +22,24 @@
 #include "GPS_NMEA_MT3339.hh"
 
 
-GPS_NMEA_MT3339::GPS_NMEA_MT3339() :
-  GPS_NMEA(),
+GPS_NMEA_MT3339::GPS_NMEA_MT3339(IOStream::Device *device) :
+  GPS_NMEA(device),
   m_sentence(SENTENCE_UNKNOWN),
   m_field_number(0),
   m_first_sentence_received(false),
-  m_in_standby(false)
+  m_ending(false)
 {
 }
 
 bool
-GPS_NMEA_MT3339::begin(IOStream::Device* dev)
+GPS_NMEA_MT3339::begin()
 {
   reset();
 
-  if (!GPS_NMEA::begin(dev))
+  if (!GPS_NMEA::begin())
     return (false);
 
-  wake();
+  send_cmd(PSTR(""));  // wake
 
   return (true);
 }
@@ -47,9 +47,15 @@ GPS_NMEA_MT3339::begin(IOStream::Device* dev)
 void
 GPS_NMEA_MT3339::end(void)
 {
-  standby();
+  // Defer handling final end until ack comes in
 
-  GPS_NMEA::end();
+  if (!m_active)
+    return;
+
+  if (!m_ending)
+    send_cmd(PSTR("$PMTK161,0*28"));
+
+  m_ending = true;
 }
 
 void
@@ -58,7 +64,7 @@ GPS_NMEA_MT3339::reset(void)
   m_sentence = SENTENCE_UNKNOWN;
   m_field_number = 0;
   m_first_sentence_received = false;
-  m_in_standby = false;
+  m_ending = false;
 
   GPS_NMEA::reset();
 }
@@ -71,30 +77,8 @@ GPS_NMEA_MT3339::factory_reset(void)
   send_cmd(PSTR("$PMTK104*37"));
 
   delay(250);  // won't respond to new commands for awhile
-}
 
-void
-GPS_NMEA_MT3339::standby(void)
-{
-  // Defer handling of reset until ack comes in
-
-  if (!m_active)
-    return;
-
-  if (!m_in_standby)
-    send_cmd(PSTR("$PMTK161,0*28"));
-
-  m_in_standby = true;
-}
-
-void
-GPS_NMEA_MT3339::wake(void)
-{
-  if (!m_active)
-    return;
-  
-  m_in_standby = false;
-  send_cmd(PSTR(""));
+  m_device->empty();
 }
 
 void
@@ -138,9 +122,6 @@ GPS_NMEA_MT3339::field(char *new_field)
 void
 GPS_NMEA_MT3339::sentence(bool valid)
 {
-  if (!m_active)
-    return;
-
   if (valid)
     {
       if (m_sentence == SENTENCE_ACK)
@@ -148,23 +129,15 @@ GPS_NMEA_MT3339::sentence(bool valid)
           switch (m_command)
             {
             case 161: // standby
-              if (m_status == 3) // ok
-                {
-                  //  trace << PSTR("standby command ack") << endl;
-                  reset();
-                  m_in_standby = true;
-                }
-              else
-                {
-                  //  trace << PSTR("standby command NACK") << endl;
-                  m_in_standby = false;  // because it failed
-                }
+              // doesn't matter if it succeeded or not
+              reset();
+              GPS_NMEA::end();
               break;
             }
         }
       else
         {
-          if (!m_first_sentence_received && !m_in_standby)
+          if (!m_first_sentence_received && !m_ending)
             {
               m_first_sentence_received = true;
               select_sentences();
@@ -182,10 +155,13 @@ GPS_NMEA_MT3339::sentence(bool valid)
 void
 GPS_NMEA_MT3339::send_cmd(str_P cmd)
 {
+#ifdef GPS_INTERRUPT_IMPL
+      // bad idea to trace within Irq...
+#endif
   if (m_tracing)
     trace << endl << PSTR("-> ") << cmd << endl;
-  m_dev->puts_P(cmd);
-  m_dev->puts_P((str_P)IOStream::CRLF);
+  m_device->puts_P(cmd);
+  m_device->puts_P((str_P)IOStream::CRLF);
 }
 
 void
@@ -204,7 +180,11 @@ GPS_NMEA_MT3339::select_sentences(void)
    * 18 NMEA_SEN_MCHN
    */
 
+#ifndef GPS_TIME_ONLY
   send_cmd(PSTR("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"));
+#else
+  send_cmd(PSTR("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29"));
+#endif
 }
 
 IOStream& 

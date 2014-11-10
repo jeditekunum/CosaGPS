@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS.cpp
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -25,6 +25,7 @@ GPS::reset(void)
   m_last_update = 0;
   m_date = 0;
   m_time = 0;
+#ifndef GPS_TIME_ONLY
   m_latitude = 0;
   m_longitude = 0;
   m_altitude = 0;
@@ -32,6 +33,7 @@ GPS::reset(void)
   m_speed = 0;
   m_satellites = 0;
   m_hdop = 0;
+#endif
 }
 
 clock_t
@@ -40,20 +42,24 @@ GPS::clock(void)
   uint32_t tmp;
   time_t t;
 
-  tmp = m_time / 100;  // get rid of 100ths
 
+  /* Extract time */
+  tmp = m_time / 1000;  // Discard milliseconds
   t.seconds = tmp % 100;
   tmp /= 100;
   t.minutes = tmp % 100;
-  t.hours = tmp / 100;
+  tmp /= 100;
+  t.hours = tmp;
 
-  t.day = 0; // unknown
-
+  /* Extract date */
   tmp = m_date;
   t.year = tmp % 100;
   tmp /= 100;
   t.month = tmp % 100;
-  t.date = tmp / 100;
+  tmp /= 100;
+  t.date = tmp;
+
+  t.day = 0; // unknown
 
   return (clock_t(t));
 }
@@ -66,6 +72,7 @@ operator<<(IOStream& outs, GPS& gps)
     << PSTR(",U=") << gps.last_update()
     << PSTR(",D=") << gps.date()
     << PSTR(",T=") << gps.time()
+#ifndef GPS_TIME_ONLY
     << PSTR(",LA=") << gps.f_latitude()
     << PSTR(",LO=") << gps.f_longitude()
     << PSTR(",A=") << gps.f_altitude()
@@ -73,6 +80,7 @@ operator<<(IOStream& outs, GPS& gps)
     << PSTR(",SP=") << gps.f_speed()
     << PSTR(",SA=") << gps.satellites()
     << PSTR(",H=") << gps.f_hdop()
+#endif
     ;
   return (outs);
 }

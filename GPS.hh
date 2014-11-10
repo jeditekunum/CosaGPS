@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS.hh
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -23,6 +23,9 @@
 #include "Cosa/IOStream.hh"
 #include "Cosa/Time.hh"
 
+#define GPS_TIME_ONLY
+//#define GPS_INTERRUPT_IMPL
+
 #define GPS_FEET_PER_CENTIMETER 0.0328084
 
 #define GPS_MILES_PER_HOUR_PER_KNOT 1.15077945
@@ -30,6 +33,12 @@
 #define GPS_KILOMETER_PER_HOUR_PER_KNOT 1.852
 
 #define GPS_MINIMUM_SATELLITES 4
+
+#ifdef GPS_INTERRUPT_IMPL
+#define GPS_VOLATILE volatile
+#else
+#define GPS_VOLATILE
+#endif
 
 
 /**
@@ -41,12 +50,14 @@ public:
   typedef uint32_t last_update_t;
   typedef uint32_t date_t;
   typedef uint32_t gps_time_t;
+#ifndef GPS_TIME_ONLY
   typedef int32_t  position_t;
   typedef int32_t  altitude_t;
   typedef uint32_t course_t;
   typedef uint32_t speed_t;
   typedef uint8_t  satellites_t;
   typedef uint32_t hdop_t;
+#endif
 
   /**
    * Construct GPS
@@ -54,7 +65,9 @@ public:
   GPS() :
     m_last_update(0),
     m_date(0),
-    m_time(0),
+    m_time(0)
+#ifndef GPS_TIME_ONLY
+    ,
     m_latitude(0),
     m_longitude(0),
     m_altitude(0),
@@ -62,6 +75,7 @@ public:
     m_speed(0),
     m_satellites(0),
     m_hdop(0)
+#endif
   {}
 
   /**
@@ -82,7 +96,7 @@ public:
 
   /**
    * Get last update
-   * @return last_update in milliseconds (Watchdog::millis)
+   * @return last_update in milliseconds (RTC::millis)
    */
   last_update_t last_update()
     __attribute__((always_inline))
@@ -102,7 +116,7 @@ public:
 
   /**
    * Get time
-   * @return time in HHMMSSCC
+   * @return time in HHMMSSmmm
    */
   gps_time_t time()
     __attribute__((always_inline))
@@ -116,6 +130,7 @@ public:
    */
   clock_t clock();
 
+#ifndef GPS_TIME_ONLY
    /**
    * Get latitude
    * @return latitude in millionths of a degree
@@ -285,37 +300,40 @@ public:
   {
     return m_hdop / 100.0;
   }
+#endif
 
 protected:
   /* Last time updated received */
-  last_update_t m_last_update;
+  GPS_VOLATILE last_update_t m_last_update;
 
   /* Date DDMMYY */
-  date_t m_date;
+  GPS_VOLATILE date_t m_date;
 
-  /* Time HHMMSSCC */
-  gps_time_t m_time;
-  
+  /* Time HHMMSSmmm */
+  GPS_VOLATILE gps_time_t m_time;
+
+#ifndef GPS_TIME_ONLY
   /* Latitude in millionths of a degree */
-  position_t m_latitude;
+  GPS_VOLATILE position_t m_latitude;
 
   /* Longitude in millionths of a degree */
-  position_t m_longitude;
+  GPS_VOLATILE position_t m_longitude;
 
   /* Altitude in centimeters */
-  altitude_t m_altitude;
+  GPS_VOLATILE altitude_t m_altitude;
 
   /* Course in 100th of a degree */
-  course_t m_course;
+  GPS_VOLATILE course_t m_course;
 
   /* Speed in 100ths of a knot */
-  speed_t m_speed;
+  GPS_VOLATILE speed_t m_speed;
 
   /* Satellies used in last update */
-  satellites_t m_satellites;
+  GPS_VOLATILE satellites_t m_satellites;
 
   /* Horizontal dilution of precision in 100ths */
-  hdop_t m_hdop;
+  GPS_VOLATILE hdop_t m_hdop;
+#endif
 
   /**
    * Print latest gps information to

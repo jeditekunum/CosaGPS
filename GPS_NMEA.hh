@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.hh
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -24,24 +24,27 @@
 
 #include "GPS.hh"
 
-
 /**
  * GPS NMEA (generic)
  *
  * GPS_NMEA can be used with any NMEA compliant GPS device.
  */
 
-class GPS_NMEA : public GPS {
+class GPS_NMEA : public GPS
+#ifdef GPS_INTERRUPT_IMPL
+               , public IOStream::Device
+#endif
+{
 public:
   /**
    * Construct GPS_NMEA
    */
-  GPS_NMEA();
+  GPS_NMEA(IOStream::Device *device = (IOStream::Device *)NULL);
 
   /**
    * Begin
    */
-  virtual bool begin(IOStream::Device *);
+  virtual bool begin();
 
   /**
    * End
@@ -63,11 +66,10 @@ public:
    */
   virtual void end_tracing();
 
-  /**
-   * Consume any data
-   */
+#ifndef GPS_INTERRUPT_IMPL
   virtual void consume();
-
+  virtual void feedchar(char c);
+#endif
 
 protected:
   /* Active?  Begin -> active, End -> not active */
@@ -77,10 +79,20 @@ protected:
   bool m_tracing;
 
   /* GPS device */
-  IOStream::Device *m_dev;
+  IOStream::Device *m_device;
 
+#ifdef GPS_INTERRUPT_IMPL
+  /**
+   * Written to by serial driver as soon as character is received.
+   * Invoked from Irq handler.
+   */
+  virtual int putchar(char c);
+#endif
+
+#ifndef GPS_TIME_ONLY
   /* Parse position */
   position_t parse_position(char *p);
+#endif
 
   /* Parse and scale */
   int32_t parse_and_scale(char *p, uint8_t places);
@@ -107,18 +119,21 @@ private:
   enum sentence_t {
     SENTENCE_INVALID,
     SENTENCE_OTHER,
-    SENTENCE_GPRMC,
+    SENTENCE_GPRMC
+#ifndef GPS_TIME_ONLY
+    ,
     SENTENCE_GPGGA
+#endif
   } __attribute__((packed));
 
-  sentence_t m_sentence;
+  GPS_VOLATILE sentence_t m_sentence;
 
   /* Parsing state */
-  uint8_t m_parity;
-  uint8_t m_field_number;
-  char m_field[12];
-  uint8_t m_field_offset;
-  bool m_checksum_field;
+  GPS_VOLATILE uint8_t m_parity;
+  GPS_VOLATILE uint8_t m_field_number;
+  GPS_VOLATILE char m_field[12];
+  GPS_VOLATILE uint8_t m_field_offset;
+  GPS_VOLATILE bool m_checksum_field;
 
   /* Process field buffer */
   void process_field();
@@ -127,15 +142,17 @@ private:
   void process_sentence();
 
   /* Temporary data */
-  date_t m_tmp_date;
-  gps_time_t m_tmp_gprmc_time;
-  gps_time_t m_tmp_gpgga_time;
-  position_t m_tmp_latitude;
-  position_t m_tmp_longitude;
-  altitude_t m_tmp_altitude;
-  course_t m_tmp_course;
-  speed_t m_tmp_speed;
-  satellites_t m_tmp_satellites;
-  hdop_t m_tmp_hdop;
+  GPS_VOLATILE date_t m_tmp_date;
+  GPS_VOLATILE gps_time_t m_tmp_gprmc_time;
+#ifndef GPS_TIME_ONLY
+  GPS_VOLATILE gps_time_t m_tmp_gpgga_time;
+  GPS_VOLATILE position_t m_tmp_latitude;
+  GPS_VOLATILE position_t m_tmp_longitude;
+  GPS_VOLATILE altitude_t m_tmp_altitude;
+  GPS_VOLATILE course_t m_tmp_course;
+  GPS_VOLATILE speed_t m_tmp_speed;
+  GPS_VOLATILE satellites_t m_tmp_satellites;
+  GPS_VOLATILE hdop_t m_tmp_hdop;
+#endif
 };
 #endif

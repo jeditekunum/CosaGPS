@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA_MT3339.hh
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -32,12 +32,12 @@ public:
   /**
    * Construct GPS_NMEA_MT3339
    */
-  GPS_NMEA_MT3339();
+  GPS_NMEA_MT3339(IOStream::Device *device = (IOStream::Device *)NULL);
 
   /**
    * Begin
    */
-  virtual bool begin(IOStream::Device *);
+  virtual bool begin();
 
   /**
    * End
@@ -53,16 +53,6 @@ public:
    * Factory reset
    */
   virtual void factory_reset();
-
-  /**
-   * Standby
-   */
-  virtual void standby();
-
-  /**
-   * Wake (exit standby)
-   */
-  virtual void wake();
 
 protected:
   virtual void field(char* new_field);
@@ -84,14 +74,14 @@ private:
     SENTENCE_ACK
   } __attribute__((packed));
 
-  sentence_t m_sentence;
+  GPS_VOLATILE sentence_t m_sentence;
 
-  uint8_t m_field_number;
-  uint8_t m_command;
-  uint8_t m_status;
+  GPS_VOLATILE uint8_t m_field_number;
+  GPS_VOLATILE uint8_t m_command;
+  GPS_VOLATILE uint8_t m_status;
 
-  bool m_first_sentence_received;
-  bool m_in_standby;
+  GPS_VOLATILE bool m_first_sentence_received;
+  GPS_VOLATILE bool m_ending;
   void send_cmd(str_P);
   void select_sentences();
 };

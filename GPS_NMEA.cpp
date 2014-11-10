@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.cpp
- * @version 0.5
+ * @version 0.6
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -32,18 +32,19 @@
  * We know we have associated sentences when the time fields match.
  */
 
-GPS_NMEA::GPS_NMEA() :
+GPS_NMEA::GPS_NMEA(IOStream::Device *device) :
   GPS(),
   m_active(false),
   m_tracing(false),
-  m_dev(0),
   m_sentence(SENTENCE_INVALID),
   m_parity(0),
   m_field_number(0),
   m_field_offset(0),
   m_checksum_field(false),
   m_tmp_date(0),
-  m_tmp_gprmc_time(0),
+  m_tmp_gprmc_time(0)
+#ifndef GPS_TIME_ONLY
+  ,
   m_tmp_gpgga_time(1),
   m_tmp_latitude(0),
   m_tmp_longitude(0),
@@ -52,18 +53,18 @@ GPS_NMEA::GPS_NMEA() :
   m_tmp_speed(0),
   m_tmp_satellites(0),
   m_tmp_hdop(0)
+#endif
 {
+  m_device = device;
 }
 
 bool
-GPS_NMEA::begin(IOStream::Device* dev)
+GPS_NMEA::begin()
 {
   if (m_active)
     return (false);
 
   m_active = true;
-
-  m_dev = dev;
 
   return (true);
 }
@@ -85,6 +86,7 @@ GPS_NMEA::reset(void)
   m_checksum_field = false;
   m_tmp_date = 0;
   m_tmp_gprmc_time = 0;
+#ifndef GPS_TIME_ONLY
   m_tmp_gpgga_time = 1;
   m_tmp_latitude = 0;
   m_tmp_longitude = 0;
@@ -93,6 +95,7 @@ GPS_NMEA::reset(void)
   m_tmp_speed = 0;
   m_tmp_satellites = 0;
   m_tmp_hdop = 0;
+#endif
 
   GPS::reset();
 }
@@ -109,72 +112,86 @@ GPS_NMEA::end_tracing()
   m_tracing = false;
 }
 
+#ifndef GPS_INTERRUPT_IMPL
 void
-GPS_NMEA::consume()
+GPS_NMEA::consume(void)
 {
-  char c;
+  while (m_device->available())
+    feedchar(m_device->getchar());
+}
+#endif
 
-
-  while (m_dev->available())
+#ifdef GPS_INTERRUPT_IMPL
+int
+GPS_NMEA::putchar(char c)
+#else
+void
+GPS_NMEA::feedchar(char c)
+#endif
+{
+  if (m_tracing)
     {
-      c = m_dev->getchar();
+#ifdef GPS_INTERRUPT_IMPL
+      // bad idea to trace within Irq...
+#endif
+      if (c == '$')
+        trace << PSTR("<- ");
+      trace << c;
+    }
 
-      if (m_tracing)
+  if (m_sentence != SENTENCE_INVALID ||
+      c == '$')
+    {
+      switch(c)
         {
-          if (c == '$')
-            trace << PSTR("<- ");
-          trace << c;
-        }
+        case '$':  // start of sentence
+          m_sentence = SENTENCE_OTHER;  // unknown at this point
+          m_parity = 0;
+          m_field_number = 0;
+          m_field_offset = 0;
+          m_checksum_field = false;
+          break;
 
-      if (m_sentence != SENTENCE_INVALID ||
-          c == '$')
-        {
-          switch(c)
+        case ',':
+          m_parity ^= c;
+        case '*':
+          m_field[m_field_offset] = '\0';
+          process_field();
+          m_field_number++;
+          m_field_offset = 0;
+          m_checksum_field = c == '*';
+          break;
+
+        case '\r':
+          m_field[m_field_offset] = '\0';
+          process_sentence();
+          m_sentence = SENTENCE_INVALID;  // anything until next '$' is invalid
+          break;
+
+        case '\n':
+          break;
+
+        default:
+          if (!m_checksum_field)
+            m_parity ^= c;
+
+          if (m_field_offset < sizeof(m_field) - 1)
+            m_field[m_field_offset++] = c;
+          else
             {
-            case '$':  // start of sentence
-              m_sentence = SENTENCE_OTHER;  // unknown at this point
-              m_parity = 0;
-              m_field_number = 0;
+              /* Field overflow */
               m_field_offset = 0;
-              m_checksum_field = false;
-              break;
-
-            case ',':
-              m_parity ^= c;
-            case '*':
-              m_field[m_field_offset] = '\0';
-              process_field();
-              m_field_number++;
-              m_field_offset = 0;
-              m_checksum_field = c == '*';
-              break;
-
-            case '\r':
-              m_field[m_field_offset] = '\0';
-              process_sentence();
-              m_sentence = SENTENCE_INVALID;  // anything until next '$' is invalid
-              break;
-
-            case '\n':
-              break;
-
-            default:
-              if (!m_checksum_field)
-                m_parity ^= c;
-
-              if (m_field_offset < sizeof(m_field) - 1)
-                m_field[m_field_offset++] = c;
-              else
-                {
-                  /* Field overflow */
-                  m_field_offset = 0;
-                  m_sentence = SENTENCE_INVALID;
-                }
+              m_sentence = SENTENCE_INVALID;
             }
         }
     }
+
+#ifdef GPS_INTERRUPT_IMPL
+  return (c);
+#endif
 }
 
+#ifndef GPS_TIME_ONLY
 GPS_NMEA::position_t
 GPS_NMEA::parse_position(char *p)
 {
@@ -202,6 +219,7 @@ GPS_NMEA::parse_position(char *p)
  
   return result;
 }
+#endif
 
 int32_t
 GPS_NMEA::parse_and_scale(char *p, uint8_t places)
@@ -264,14 +282,16 @@ GPS_NMEA::process_field()
 {
   if (m_field_number == 0)
     {
-      if (!strcmp(m_field, "GPRMC"))
+      if (!strcmp((char*)m_field, "GPRMC"))
         m_sentence = SENTENCE_GPRMC;
       else
         {
-          if (!strcmp(m_field, "GPGGA"))
+#ifndef GPS_TIME_ONLY
+          if (!strcmp((char*)m_field, "GPGGA"))
             m_sentence = SENTENCE_GPGGA;
           else
-            field(m_field);  // Subclasses may implement other sentences
+#endif
+            field((char*)m_field);  // Subclasses may implement other sentences
         }
       return;
     }
@@ -282,7 +302,7 @@ GPS_NMEA::process_field()
       switch (m_field_number)
         {
         case 1:  // Time
-          m_tmp_gprmc_time = parse_and_scale(m_field, 2);
+          m_tmp_gprmc_time = parse_and_scale((char*)m_field, 3);
           break;
 
         case 2: // Validity
@@ -291,33 +311,45 @@ GPS_NMEA::process_field()
           break;
 
         case 3: // Latitude
-          m_tmp_latitude = parse_position(m_field);
+#ifndef GPS_TIME_ONLY
+          m_tmp_latitude = parse_position((char*)m_field);
+#endif
           break;
 
         case 4: // North/South
+#ifndef GPS_TIME_ONLY
           if (m_field[0] == 'S')
             m_tmp_latitude = -m_tmp_latitude;
+#endif
           break;
 
         case 5: // Longitude
-          m_tmp_longitude = parse_position(m_field);
+#ifndef GPS_TIME_ONLY
+          m_tmp_longitude = parse_position((char*)m_field);
+#endif
           break;
 
         case 6: // East/West
+#ifndef GPS_TIME_ONLY
           if (m_field[0] == 'W')
             m_tmp_longitude = -m_tmp_longitude;
+#endif
           break;
 
         case 7: // Speed
-          m_tmp_speed = parse_and_scale(m_field, 2);
+#ifndef GPS_TIME_ONLY
+          m_tmp_speed = parse_and_scale((char*)m_field, 2);
+#endif
           break;
 
         case 8: // Course
-          m_tmp_course = parse_and_scale(m_field, 2);
+#ifndef GPS_TIME_ONLY
+          m_tmp_course = parse_and_scale((char*)m_field, 2);
+#endif
           break;
 
         case 9: // Date
-          m_tmp_date = strtoul(m_field, NULL, 10);
+          m_tmp_date = strtoul((char*)m_field, NULL, 10);
           break;
 
         case 10: // magnetic variation
@@ -333,15 +365,16 @@ GPS_NMEA::process_field()
         }
       break;
 
+#ifndef GPS_TIME_ONLY
     case SENTENCE_GPGGA:
       switch (m_field_number)
         {
         case 1:  // Time
-          m_tmp_gpgga_time = parse_and_scale(m_field, 2);
+          m_tmp_gpgga_time = parse_and_scale((char*)m_field, 3);
           break;
 
         case 2: // Latitude
-          m_tmp_latitude = parse_position(m_field);
+          m_tmp_latitude = parse_position((char*)m_field);
           break;
 
         case 3: // North/South
@@ -350,7 +383,7 @@ GPS_NMEA::process_field()
           break;
 
         case 4: // Longitude
-          m_tmp_longitude = parse_position(m_field);
+          m_tmp_longitude = parse_position((char*)m_field);
           break;
 
         case 5: // East/West
@@ -364,15 +397,15 @@ GPS_NMEA::process_field()
           break;
 
         case 7: // Satellites
-          m_tmp_satellites = strtoul(m_field, NULL, 10);
+          m_tmp_satellites = strtoul((char*)m_field, NULL, 10);
           break;
 
         case 8: // HDOP
-          m_tmp_hdop = parse_and_scale(m_field, 2);
+          m_tmp_hdop = parse_and_scale((char*)m_field, 2);
           break;
 
         case 9: // Altitude
-          m_tmp_altitude = parse_and_scale(m_field, 2);
+          m_tmp_altitude = parse_and_scale((char*)m_field, 2);
           break;
 
         case 10: // Altitude units
@@ -386,13 +419,14 @@ GPS_NMEA::process_field()
           m_sentence = SENTENCE_INVALID;
           break;
         }
+#endif
 
     default:
       break;
     }
 
   /* Subclass may implement field() to handle other sentences */
-  field(m_field);
+  field((char*)m_field);
 }
 
 void
@@ -402,27 +436,37 @@ GPS_NMEA::process_sentence()
 
 
   /* Last field is the checksum */
-  checksum = strtoul(m_field, NULL, 16);
+  checksum = strtoul((char*)m_field, NULL, 16);
 
   if (checksum == m_parity)
     {
-      if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
-          m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
+#ifdef GPS_TIME_ONLY
+      if (m_sentence == SENTENCE_GPRMC)
         {
-          m_date = m_tmp_date;
-          m_time = m_tmp_gprmc_time;
-          m_latitude = m_tmp_latitude;
-          m_longitude = m_tmp_longitude;
-          m_altitude = m_tmp_altitude;
-          m_course = m_tmp_course;
-          m_speed = m_tmp_speed;
-          m_satellites = m_tmp_satellites;
-          m_hdop = m_tmp_hdop;
+#endif
+#ifndef GPS_TIME_ONLY
+          if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
+              m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
+#endif
+            {
+              m_date = m_tmp_date;
+              m_time = m_tmp_gprmc_time;
+#ifndef GPS_TIME_ONLY
+              m_latitude = m_tmp_latitude;
+              m_longitude = m_tmp_longitude;
+              m_altitude = m_tmp_altitude;
+              m_course = m_tmp_course;
+              m_speed = m_tmp_speed;
+              m_satellites = m_tmp_satellites;
+              m_hdop = m_tmp_hdop;
+#endif
+              m_last_update = RTC::millis();
 
-          m_last_update = RTC::millis();
-
-          m_tmp_gprmc_time = 0;
+              m_tmp_gprmc_time = 0;
+            }
+#ifdef GPS_TIME_ONLY
         }
+#endif
 
       /* Subclass may implement sentence() to handle other sentences */
       sentence(true);
