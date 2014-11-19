@@ -442,31 +442,26 @@ GPS_NMEA::process_sentence()
     {
 #ifdef GPS_TIME_ONLY
       if (m_sentence == SENTENCE_GPRMC)
+#else
+      if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
+          m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
+#endif
         {
-#endif
+          m_date = m_tmp_date;
+          m_time = m_tmp_gprmc_time;
 #ifndef GPS_TIME_ONLY
-          if (m_tmp_gprmc_time == m_tmp_gpgga_time &&
-              m_tmp_satellites >= GPS_MINIMUM_SATELLITES)
+          m_latitude = m_tmp_latitude;
+          m_longitude = m_tmp_longitude;
+          m_altitude = m_tmp_altitude;
+          m_course = m_tmp_course;
+          m_speed = m_tmp_speed;
+          m_satellites = m_tmp_satellites;
+          m_hdop = m_tmp_hdop;
 #endif
-            {
-              m_date = m_tmp_date;
-              m_time = m_tmp_gprmc_time;
-#ifndef GPS_TIME_ONLY
-              m_latitude = m_tmp_latitude;
-              m_longitude = m_tmp_longitude;
-              m_altitude = m_tmp_altitude;
-              m_course = m_tmp_course;
-              m_speed = m_tmp_speed;
-              m_satellites = m_tmp_satellites;
-              m_hdop = m_tmp_hdop;
-#endif
-              m_last_update = RTC::millis();
+          m_last_update = RTC::millis();
 
-              m_tmp_gprmc_time = 0;
-            }
-#ifdef GPS_TIME_ONLY
+          m_tmp_gprmc_time = 0;
         }
-#endif
 
       /* Subclass may implement sentence() to handle other sentences */
       sentence(true);
