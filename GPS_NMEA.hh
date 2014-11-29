@@ -54,7 +54,7 @@ public:
   /**
    * Active?
    */
-  bool active();
+  virtual bool active();
 
   /**
    * Reset

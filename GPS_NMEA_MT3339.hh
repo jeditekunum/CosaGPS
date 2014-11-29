@@ -45,6 +45,11 @@ public:
   virtual void end();
 
   /**
+   * Active?
+   */
+  virtual bool active();
+
+  /**
    * Reset
    */
   virtual void reset();

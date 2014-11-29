@@ -58,6 +58,12 @@ GPS_NMEA_MT3339::end(void)
   m_ending = true;
 }
 
+bool
+GPS_NMEA_MT3339::active()
+{
+  return (m_active && !m_ending);
+}
+
 void
 GPS_NMEA_MT3339::reset(void)
 {
