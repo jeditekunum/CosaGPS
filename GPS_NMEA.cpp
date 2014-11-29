@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.cpp
- * @version 0.6
+ * @version 0.7
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -75,6 +75,12 @@ GPS_NMEA::end()
   m_active = false;
 
   reset();
+}
+
+bool
+GPS_NMEA::active()
+{
+  return (m_active);
 }
 
 void

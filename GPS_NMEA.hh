@@ -1,6 +1,6 @@
 /**
  * @file ?/GPS_NMEA.hh
- * @version 0.6
+ * @version 0.7
  *
  * @section License
  * Copyright (C) 2014, jediunix
@@ -50,6 +50,11 @@ public:
    * End
    */
   virtual void end();
+
+  /**
+   * Active?
+   */
+  bool active();
 
   /**
    * Reset
