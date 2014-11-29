@@ -18,6 +18,7 @@
  */
 
 #include "Cosa/Trace.hh"
+#include "Cosa/RTC.hh"
 
 #include "GPS_NMEA_MT3339.hh"
 
@@ -47,15 +48,27 @@ GPS_NMEA_MT3339::begin()
 void
 GPS_NMEA_MT3339::end(void)
 {
-  // Defer handling final end until ack comes in
-
   if (!m_active)
     return;
 
-  if (!m_ending)
-    send_cmd(PSTR("$PMTK161,0*28"));
+  if (RTC::since(m_last_update) > 5000)
+    {
+      // Ending while device isn't responding
+      // Don't defer
+      send_cmd(PSTR("$PMTK161,0*28"));
+      reset();
+      GPS_NMEA::end();
+    }
+  else
+    {
+      // Device seems active
+      // Defer handling final end until ack comes in
 
-  m_ending = true;
+      if (!m_ending)
+        send_cmd(PSTR("$PMTK161,0*28"));
+
+      m_ending = true;
+    }
 }
 
 bool
