@@ -107,7 +107,7 @@ protected:
    * handle other sentences by implementing field/sentence.  The argument
    * to sentence is true if checksum was valid, false if not.
    */
-  virtual void field(char* new_field);
+  virtual void field(uint8_t field_number, char* new_field);
   virtual void sentence(bool valid);
 
   /**

@@ -135,6 +135,13 @@ void
 GPS_NMEA::feedchar(char c)
 #endif
 {
+  if (c != '\r' && c != '\n' && (c < ' ' || c > '~'))
+    {
+      if (m_tracing)
+        trace << PSTR("_");
+      return;
+    }
+      
   if (m_tracing)
     {
 #ifdef GPS_INTERRUPT_IMPL
@@ -261,8 +268,9 @@ GPS_NMEA::parse_and_scale(char *p, uint8_t places)
 }
 
 void
-GPS_NMEA::field(char *new_field)
+GPS_NMEA::field(uint8_t field_number, char *new_field)
 {
+  UNUSED(field_number);
   UNUSED(new_field);
 
   /* May be implemented by subsclasses */
@@ -297,7 +305,7 @@ GPS_NMEA::process_field()
             m_sentence = SENTENCE_GPGGA;
           else
 #endif
-            field((char*)m_field);  // Subclasses may implement other sentences
+            field(m_field_number, (char*)m_field);  // Subclasses may implement other sentences
         }
       return;
     }
@@ -432,7 +440,7 @@ GPS_NMEA::process_field()
     }
 
   /* Subclass may implement field() to handle other sentences */
-  field((char*)m_field);
+  field(m_field_number, (char*)m_field);
 }
 
 void

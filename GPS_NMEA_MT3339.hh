@@ -60,7 +60,7 @@ public:
   virtual void factory_reset();
 
 protected:
-  virtual void field(char* new_field);
+  virtual void field(uint8_t field_number, char* new_field);
   virtual void sentence(bool valid);
 
   /**
@@ -82,7 +82,6 @@ private:
 
   GPS_VOLATILE sentence_t m_sentence;
 
-  GPS_VOLATILE uint8_t m_field_number;
   GPS_VOLATILE uint16_t m_command;
   GPS_VOLATILE uint8_t m_status;
   GPS_VOLATILE char m_release[32];

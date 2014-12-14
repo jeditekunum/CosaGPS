@@ -26,7 +26,6 @@
 GPS_NMEA_MT3339::GPS_NMEA_MT3339(IOStream::Device *device) :
   GPS_NMEA(device),
   m_sentence(SENTENCE_UNKNOWN),
-  m_field_number(0),
   m_first_sentence_received(false),
   m_ending(false)
 {
@@ -81,7 +80,6 @@ void
 GPS_NMEA_MT3339::reset(void)
 {
   m_sentence = SENTENCE_UNKNOWN;
-  m_field_number = 0;
   m_first_sentence_received = false;
   m_ending = false;
 
@@ -97,23 +95,23 @@ GPS_NMEA_MT3339::factory_reset(void)
 }
 
 void
-GPS_NMEA_MT3339::field(char *new_field)
+GPS_NMEA_MT3339::field(uint8_t field_number, char *new_field)
 {
-  if (m_field_number == 0)
+  // trace << endl << PSTR("field_number=") << field_number << PSTR(" field=") << new_field << endl;
+
+  if (field_number == 0)
     {
       if (!strcmp(new_field, "PMTK001"))
         m_sentence = SENTENCE_ACK;
       else if (!strcmp(new_field, "PMTK705"))
         m_sentence = SENTENCE_VERSION;
-
-      m_field_number++;
       return;
     }
 
   switch (m_sentence)
     {
     case SENTENCE_ACK:
-      switch (m_field_number)
+      switch (field_number)
         {
         case 1: // Command
           m_command = strtoul(new_field, NULL, 10);
@@ -129,7 +127,7 @@ GPS_NMEA_MT3339::field(char *new_field)
         }
 
     case SENTENCE_VERSION:
-      switch (m_field_number)
+      switch (field_number)
         {
         case 1: // Release
           strncpy(m_release, new_field, sizeof(m_release)-1);
@@ -143,13 +141,13 @@ GPS_NMEA_MT3339::field(char *new_field)
     default:
       break;
     }
-
-  m_field_number++;
 }
 
 void
 GPS_NMEA_MT3339::sentence(bool valid)
 {
+  //  trace << endl << PSTR("valid=") << valid << PSTR(" sentence=") << m_sentence << PSTR(" command=") << m_command << endl;
+
   if (valid)
     {
       switch (m_sentence)
@@ -158,6 +156,7 @@ GPS_NMEA_MT3339::sentence(bool valid)
           switch (m_command)
             {
             case 161: // standby
+              trace << PSTR("saw ack") << endl;
               // doesn't matter if it succeeded or not
               reset();
               GPS_NMEA::end();
@@ -184,7 +183,6 @@ GPS_NMEA_MT3339::sentence(bool valid)
 
   // reset extended sentence
   m_sentence = SENTENCE_UNKNOWN;
-  m_field_number = 0;
   m_command = 0;
   m_status = 0;
 }
