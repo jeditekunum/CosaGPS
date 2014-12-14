@@ -94,10 +94,6 @@ GPS_NMEA_MT3339::factory_reset(void)
   reset();
 
   send_cmd(PSTR("$PMTK104*37"));
-
-  delay(250);  // won't respond to new commands for awhile
-
-  m_device->empty();
 }
 
 void
@@ -106,10 +102,11 @@ GPS_NMEA_MT3339::field(char *new_field)
   if (m_field_number == 0)
     {
       if (!strcmp(new_field, "PMTK001"))
-        {
-          m_sentence = SENTENCE_ACK;
-          m_field_number++;
-        }
+        m_sentence = SENTENCE_ACK;
+      else if (!strcmp(new_field, "PMTK705"))
+        m_sentence = SENTENCE_VERSION;
+
+      m_field_number++;
       return;
     }
 
@@ -120,12 +117,10 @@ GPS_NMEA_MT3339::field(char *new_field)
         {
         case 1: // Command
           m_command = strtoul(new_field, NULL, 10);
-          m_field_number++;
           break;
 
         case 2: // Status
           m_status = strtoul(new_field, NULL, 10);
-          m_field_number++;
           break;
 
         default:
@@ -133,9 +128,23 @@ GPS_NMEA_MT3339::field(char *new_field)
           break;
         }
 
+    case SENTENCE_VERSION:
+      switch (m_field_number)
+        {
+        case 1: // Release
+          strncpy(m_release, new_field, sizeof(m_release)-1);
+          break;
+
+        case 2: // Version
+          m_version = strtoul(new_field, NULL, 10);
+          break;
+        }
+
     default:
       break;
     }
+
+  m_field_number++;
 }
 
 void
@@ -143,8 +152,9 @@ GPS_NMEA_MT3339::sentence(bool valid)
 {
   if (valid)
     {
-      if (m_sentence == SENTENCE_ACK)
+      switch (m_sentence)
         {
+        case SENTENCE_ACK:
           switch (m_command)
             {
             case 161: // standby
@@ -152,15 +162,23 @@ GPS_NMEA_MT3339::sentence(bool valid)
               reset();
               GPS_NMEA::end();
               break;
+
+            case 314: // select sentences
+              break;
             }
-        }
-      else
-        {
+          break;
+
+        case SENTENCE_VERSION:
+          if (m_tracing)
+            trace << endl << PSTR("Release ") << m_release << PSTR(" Version ") << m_version << endl;
+          break;
+
+        default:
           if (!m_first_sentence_received && !m_ending)
             {
               m_first_sentence_received = true;
               select_sentences();
-          }
+            }
         }
     }
 
@@ -186,6 +204,8 @@ GPS_NMEA_MT3339::send_cmd(str_P cmd)
 void
 GPS_NMEA_MT3339::select_sentences(void)
 {
+  //  send_cmd(PSTR("$PMTK605*31"));  // query release and version
+  
   /*
    * Set the desired sentences..
    *

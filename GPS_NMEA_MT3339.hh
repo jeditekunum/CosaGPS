@@ -76,14 +76,17 @@ private:
   /* Kind of sentence (extended) */
   enum sentence_t {
     SENTENCE_UNKNOWN,
-    SENTENCE_ACK
+    SENTENCE_ACK,
+    SENTENCE_VERSION
   } __attribute__((packed));
 
   GPS_VOLATILE sentence_t m_sentence;
 
   GPS_VOLATILE uint8_t m_field_number;
-  GPS_VOLATILE uint8_t m_command;
+  GPS_VOLATILE uint16_t m_command;
   GPS_VOLATILE uint8_t m_status;
+  GPS_VOLATILE char m_release[32];
+  GPS_VOLATILE uint16_t m_version;
 
   GPS_VOLATILE bool m_first_sentence_received;
   GPS_VOLATILE bool m_ending;
