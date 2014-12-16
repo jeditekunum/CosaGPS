@@ -89,9 +89,9 @@ GPS_NMEA_MT3339::reset(void)
 void
 GPS_NMEA_MT3339::factory_reset(void)
 {
-  reset();
-
   send_cmd(PSTR("$PMTK104*37"));
+  reset();
+  GPS_NMEA::begin();
 }
 
 void
