@@ -156,7 +156,6 @@ GPS_NMEA_MT3339::sentence(bool valid)
           switch (m_command)
             {
             case 161: // standby
-              trace << PSTR("saw ack") << endl;
               // doesn't matter if it succeeded or not
               reset();
               GPS_NMEA::end();
@@ -168,8 +167,7 @@ GPS_NMEA_MT3339::sentence(bool valid)
           break;
 
         case SENTENCE_VERSION:
-          if (m_tracing)
-            trace << endl << PSTR("Release ") << m_release << PSTR(" Version ") << m_version << endl;
+          //          trace << PSTR("GPS Device: Release ") << m_release << PSTR(" Version ") << m_version << endl;
           break;
 
         default:

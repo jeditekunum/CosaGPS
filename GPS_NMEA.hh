@@ -136,7 +136,7 @@ private:
   /* Parsing state */
   GPS_VOLATILE uint8_t m_parity;
   GPS_VOLATILE uint8_t m_field_number;
-  GPS_VOLATILE char m_field[12];
+  GPS_VOLATILE char m_field[32];
   GPS_VOLATILE uint8_t m_field_offset;
   GPS_VOLATILE bool m_checksum_field;
 
