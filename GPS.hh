@@ -3,18 +3,18 @@
  * @version 0.6
  *
  * @section License
- * Copyright (C) 2014, jediunix
+ * Copyright (C) 2014-2015, jeditekunum
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  */
 
 #ifndef COSA_GPS_HH
@@ -140,7 +140,7 @@ public:
   {
     return m_latitude;
   }
-    
+
   /**
    * Get latitude
    * @return latitude in degrees
@@ -150,7 +150,7 @@ public:
   {
     return m_latitude / 1000000.0;
   }
-    
+
   /**
    * Get longitude
    * @return longitude in millionths of a degree
@@ -170,7 +170,7 @@ public:
   {
     return m_longitude / 1000000.0;
   }
-    
+
   /**
    * Get altitude
    * @return altitude in centimeters

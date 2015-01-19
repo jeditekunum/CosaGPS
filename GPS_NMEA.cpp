@@ -3,18 +3,18 @@
  * @version 0.7
  *
  * @section License
- * Copyright (C) 2014, jediunix
+ * Copyright (C) 2014-2015, jeditekunum
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  */
 
 #include <ctype.h>
@@ -141,7 +141,7 @@ GPS_NMEA::feedchar(char c)
         trace << PSTR("_");
       return;
     }
-      
+
   if (m_tracing)
     {
 #ifdef GPS_INTERRUPT_IMPL
@@ -214,9 +214,9 @@ GPS_NMEA::parse_position(char *p)
 
 
   /* Result is millionths of a degree */
-  
+
   /* DDMM.MMMMM */
-  
+
   scaled = parse_and_scale(p, 5);
 
   /* DDMMMMMMM */
@@ -226,10 +226,10 @@ GPS_NMEA::parse_position(char *p)
 
   /* Truncate minutes leaving degrees in millionths */
   result = (scaled / 10000000) * 1000000;
-  
+
   /* Convert minutes to degrees and add back in */
   result += (hundred_thousandths_of_minutes + 3) / 6;
- 
+
   return result;
 }
 #endif
@@ -240,14 +240,14 @@ GPS_NMEA::parse_and_scale(char *p, uint8_t places)
   uint32_t result = 0;
   bool negative;
 
-  
+
   while (*p && (*p == ' ' || *p == '\t'))
     p++;
 
   negative = (*p == '-');
   if (negative)
     p++;
-      
+
   while (isdigit(*p))
     result = (result * 10) + (*(p++) - '0');
 
@@ -284,7 +284,7 @@ GPS_NMEA::sentence(bool valid)
   /* May be implemented by subsclasses */
 }
 
-IOStream& 
+IOStream&
 operator<<(IOStream& outs, GPS_NMEA& gps_nmea)
 {
   outs << (GPS&)gps_nmea;
@@ -428,7 +428,7 @@ GPS_NMEA::process_field()
         case 13: // Age of differential data
         case 14: // Differential reference station id
           break;
- 
+
         default:
           m_sentence = SENTENCE_INVALID;
           break;
