@@ -193,8 +193,8 @@ GPS_NMEA_MT3339::send_cmd(str_P cmd)
 #endif
   if (m_tracing)
     trace << endl << PSTR("-> ") << cmd << endl;
-  m_device->puts_P(cmd);
-  m_device->puts_P((str_P)IOStream::CRLF);
+  m_device->puts(cmd);
+  m_device->puts((str_P)IOStream::CRLF);
 }
 
 void
