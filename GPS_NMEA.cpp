@@ -18,7 +18,7 @@
  */
 
 #include <ctype.h>
-#include "Cosa/RTC.hh"
+#include "Cosa/RTT.hh"
 #include "Cosa/Trace.hh"
 
 #include "GPS_NMEA.hh"
@@ -139,7 +139,11 @@ GPS_NMEA::feedchar(char c)
     {
       if (m_tracing)
         trace << PSTR("_");
+#ifdef GPS_INTERRUPT_IMPL
+      return (c);
+#else
       return;
+#endif
     }
 
   if (m_tracing)
@@ -472,7 +476,7 @@ GPS_NMEA::process_sentence()
           m_satellites = m_tmp_satellites;
           m_hdop = m_tmp_hdop;
 #endif
-          m_last_update = RTC::millis();
+          m_last_update = RTT::millis();
 
           m_tmp_gprmc_time = 0;
         }

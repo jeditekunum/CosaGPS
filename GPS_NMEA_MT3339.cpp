@@ -18,7 +18,7 @@
  */
 
 #include "Cosa/Trace.hh"
-#include "Cosa/RTC.hh"
+#include "Cosa/RTT.hh"
 
 #include "GPS_NMEA_MT3339.hh"
 
@@ -50,7 +50,7 @@ GPS_NMEA_MT3339::end(void)
   if (!m_active)
     return;
 
-  if (RTC::since(m_last_update) > 5000)
+  if (RTT::since(m_last_update) > 5000)
     {
       // Ending while device isn't responding
       // Don't defer
